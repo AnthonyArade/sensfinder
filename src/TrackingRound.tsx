@@ -16,18 +16,18 @@ interface Props {
   displayRound: number
   speed: number
   direction: 'horizontal' | 'vertical' | 'mixed'
-  initialSign: 1 | -1   // +1 = right/down, -1 = left/up
+  initialSign: 1 | -1        // +1 = right/down, -1 = left/up (ignored for mixed)
+  mixedAngle?: number         // pre-generated angle in radians for mixed rounds
   virtualCursorRef: React.MutableRefObject<{ x: number; y: number }>
   onComplete: (stats: RoundStats) => void
 }
 
-function TrackingRound({ displayRound, speed, direction, initialSign, virtualCursorRef, onComplete }: Props) {
+function TrackingRound({ displayRound, speed, direction, initialSign, mixedAngle = 0, virtualCursorRef, onComplete }: Props) {
   const centerX = window.innerWidth  / 2
   const centerY = window.innerHeight / 2
 
-  const angleRef = useRef(direction === 'mixed' ? Math.random() * 2 * Math.PI : 0)
-  const initVX = direction === 'vertical'   ? 0 : direction === 'mixed' ? speed * Math.cos(angleRef.current) : speed * initialSign
-  const initVY = direction === 'horizontal' ? 0 : direction === 'mixed' ? speed * Math.sin(angleRef.current) : speed * initialSign
+  const initVX = direction === 'vertical'   ? 0 : direction === 'mixed' ? speed * Math.cos(mixedAngle) : speed * initialSign
+  const initVY = direction === 'horizontal' ? 0 : direction === 'mixed' ? speed * Math.sin(mixedAngle) : speed * initialSign
 
   const [circleX,   setCircleX]   = useState(centerX)
   const [circleY,   setCircleY]   = useState(centerY)

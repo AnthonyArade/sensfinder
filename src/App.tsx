@@ -42,6 +42,7 @@ function App() {
   const multiplierRef     = useRef(sensitivityMultiplier)
   const resetButtonRef    = useRef<HTMLButtonElement>(null)
   const restartButtonRef  = useRef<HTMLButtonElement>(null)
+  const mixedAngleRef     = useRef(0)
   const [cursorPx, setCursorPx] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
   const [pos,      setPos]      = useState({ x: 0, y: 0 })
 
@@ -137,6 +138,8 @@ function App() {
       dispatch(setSessionComplete())
     } else {
       dispatch(nextRound())
+      // Pre-generate the angle for the upcoming mixed round so the preview arrow can show it
+      if (round >= 7) mixedAngleRef.current = Math.random() * 2 * Math.PI
       dispatch(resetTimer())
     }
   }
@@ -208,14 +211,16 @@ function App() {
       {!started && <StartPrompt onPlay={() => dispatch(setStarted(true))} />}
       {started && !timerDone && <Timer onComplete={() => dispatch(setTimerDone())} aboveCenter={round > 1} />}
       {started && !timerDone && round > 1 && (() => {
-        const isRandom      = round > 7
+        const isMixed       = round > 7
         // Alternate sign within each phase: even phase-position = +1, odd = -1
         const phasePos      = round <= 4 ? round - 2 : round <= 7 ? round - 5 : 0
         const sign          = phasePos % 2 === 0 ? 1 : -1
-        // 0°=right, 180°=left, 90°=down, 270°=up
-        const arrowDeg      = round <= 4
-          ? (sign > 0 ? 0 : 180)
-          : (sign > 0 ? 90 : 270)
+        // Degrees: 0°=right, 90°=down, 180°=left, 270°=up; mixed uses pre-generated angle
+        const arrowDeg      = isMixed
+          ? mixedAngleRef.current * (180 / Math.PI)
+          : round <= 4
+            ? (sign > 0 ? 0 : 180)
+            : (sign > 0 ? 90 : 270)
         const upcomingLabel = round <= 4 ? 'Horizontal' : round <= 7 ? 'Vertical' : 'Random'
         return (
           <>
@@ -234,8 +239,8 @@ function App() {
               }}
             />
 
-            {/* Direction arrow — only for horizontal and vertical */}
-            {!isRandom && (
+            {/* Direction arrow */}
+            {(
               <div
                 style={{
                   position: 'absolute',
@@ -290,7 +295,7 @@ function App() {
       )}
 
       {timerDone && !showTrackingPrompt && round > 1 && !sessionComplete && (() => {
-        const phasePos   = round <= 4 ? round - 2 : round <= 7 ? round - 5 : 0
+        const phasePos    = round <= 4 ? round - 2 : round <= 7 ? round - 5 : 0
         const initialSign = (phasePos % 2 === 0 ? 1 : -1) as 1 | -1
         return (
           <TrackingRound
@@ -299,6 +304,7 @@ function App() {
             speed={BASE_SPEED}
             direction={round <= 4 ? 'horizontal' : round <= 7 ? 'vertical' : 'mixed'}
             initialSign={initialSign}
+            mixedAngle={mixedAngleRef.current}
             virtualCursorRef={virtualCursorRef}
             onComplete={handleTrackingRoundComplete}
           />
