@@ -1,59 +1,94 @@
 import { useState, useEffect, useRef } from 'react'
 
-const SEPARATION = 300
-const TOTAL_STEPS = 5
-const RADIUS = 6
-const MARGIN = 80
-const EXPECTED_DIST = Math.sqrt(SEPARATION ** 2 + SEPARATION ** 2)
+const TOTAL_STEPS  = 5
+const RADIUS       = 6
+const MARGIN       = 80
+const MIN_DIST     = 220
+const MAX_ATTEMPTS = 50
 
 interface Pos { x: number; y: number }
 
-function initialPos(): Pos {
-  return { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+function dist(a: Pos, b: Pos) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
 }
 
-function nextPos(current: Pos): Pos {
-  const canRight = current.x + SEPARATION < window.innerWidth - MARGIN
-  const canLeft  = current.x - SEPARATION > MARGIN
-  const goRight  = canRight && (!canLeft || Math.random() > 0.5)
-
-  const canDown = current.y + SEPARATION < window.innerHeight - MARGIN
-  const canUp   = current.y - SEPARATION > MARGIN
-  const goDown  = canDown && (!canUp || Math.random() > 0.5)
-
+function randomPos(): Pos {
   return {
-    x: current.x + (goRight ? SEPARATION : -SEPARATION),
-    y: current.y + (goDown  ? SEPARATION : -SEPARATION),
+    x: MARGIN + Math.random() * (window.innerWidth  - MARGIN * 2),
+    y: MARGIN + Math.random() * (window.innerHeight - MARGIN * 2),
   }
 }
 
-interface Props {
+function nextTarget(from: Pos): Pos {
+  let pos: Pos
+  let attempts = 0
+  do {
+    pos = randomPos()
+    attempts++
+  } while (dist(pos, from) < MIN_DIST && attempts < MAX_ATTEMPTS)
+  return pos
+}
+
+function center(): Pos {
+  return { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+}
+
+export interface Props {
   onComplete: (ratio: number) => void
 }
 
 function CalibrationRound({ onComplete }: Props) {
-  const [step, setStep] = useState(0)
-  const [pos, setPos] = useState<Pos>(initialPos)
-  const accX = useRef(0)
-  const accY = useRef(0)
-  const ratios = useRef<number[]>([])
+  // step 0 = anchor click (no measurement), steps 1-5 = measured clicks
+  const [step,      setStep]      = useState(0)
+  const [target,    setTarget]    = useState<Pos>(center)
+  const [overshoot, setOvershoot] = useState(0)
 
+  const prevPos    = useRef<Pos | null>(null)
+  const accX       = useRef(0)
+  const accY       = useRef(0)
+  const ratios     = useRef<number[]>([])
+  const overshoots = useRef(0)
+  const prevCursorX = useRef<number | null>(null)
+  const prevCursorY = useRef<number | null>(null)
+
+  // track accumulated movement + overshoot detection
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       accX.current += Math.abs(e.movementX)
       accY.current += Math.abs(e.movementY)
+
+      // overshoot: cursor crossed past the target and came back
+      if (prevPos.current && step > 0) {
+        const prev = prevCursorX.current
+        if (prev !== null) {
+          const tX = target.x
+          const crossedPast =
+            (prev < tX && e.clientX > tX) ||
+            (prev > tX && e.clientX < tX)
+          if (crossedPast) overshoots.current++
+        }
+      }
+      prevCursorX.current = e.clientX
+      prevCursorY.current = e.clientY
     }
     window.addEventListener('mousemove', onMove)
     return () => window.removeEventListener('mousemove', onMove)
-  }, [])
+  }, [step, target])
 
   const handleClick = () => {
-    if (step > 0) {
-      const dist = Math.sqrt(accX.current ** 2 + accY.current ** 2)
-      ratios.current.push(EXPECTED_DIST / dist)
+    if (step > 0 && prevPos.current) {
+      const straight = dist(target, prevPos.current)
+      const accumulated = Math.sqrt(accX.current ** 2 + accY.current ** 2)
+      // efficiency: how directly did the user move (1 = perfect straight line)
+      const efficiency = accumulated > 0 ? Math.min(1, straight / accumulated) : 1
+      ratios.current.push(efficiency)
     }
-    accX.current = 0
-    accY.current = 0
+
+    // reset per-step counters
+    accX.current       = 0
+    accY.current       = 0
+    overshoots.current = 0
+    setOvershoot(0)
 
     if (step === TOTAL_STEPS) {
       const avg = ratios.current.reduce((a, b) => a + b, 0) / ratios.current.length
@@ -61,12 +96,15 @@ function CalibrationRound({ onComplete }: Props) {
       return
     }
 
-    setPos(p => nextPos(p))
+    prevPos.current = target
+    const next = nextTarget(target)
+    setTarget(next)
     setStep(s => s + 1)
   }
 
   return (
     <>
+      {/* Step counter */}
       <div
         style={{
           position: 'absolute',
@@ -85,9 +123,10 @@ function CalibrationRound({ onComplete }: Props) {
         }}
       >
         <span style={{ fontSize: '0.85rem', opacity: 0.5 }}>Calibration</span>
-        <span>{step === 0 ? 'Click to begin' : `${step} / ${TOTAL_STEPS}`}</span>
+        <span>{step === 0 ? 'Click the dot to begin' : `${step} / ${TOTAL_STEPS}`}</span>
       </div>
 
+      {/* Target circle */}
       <div
         onClick={handleClick}
         style={{
@@ -96,8 +135,8 @@ function CalibrationRound({ onComplete }: Props) {
           height: RADIUS * 2,
           borderRadius: '50%',
           background: 'red',
-          left: pos.x - RADIUS,
-          top: pos.y - RADIUS,
+          left: target.x - RADIUS,
+          top:  target.y - RADIUS,
           cursor: 'pointer',
           zIndex: 20,
         }}

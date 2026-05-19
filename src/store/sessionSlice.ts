@@ -1,6 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit'
 import type { RoundStats } from '../TrackingRound'
 
+const BASE_SPEED = 300 // px/s — fixed, never changes
+
 interface SessionState {
   isFullscreen: boolean
   started: boolean
@@ -9,6 +11,7 @@ interface SessionState {
   showTrackingPrompt: boolean
   sensitivityRatio: number | null
   lastRoundStats: RoundStats | null
+  sensitivityMultiplier: number   // virtual cursor scale: 1 = 1:1, 0.75 = 25% slower
 }
 
 const initialState: SessionState = {
@@ -19,6 +22,7 @@ const initialState: SessionState = {
   showTrackingPrompt: false,
   sensitivityRatio: null,
   lastRoundStats: null,
+  sensitivityMultiplier: 1,
 }
 
 const sessionSlice = createSlice({
@@ -32,6 +36,8 @@ const sessionSlice = createSlice({
         state.timerDone = false
         state.round = 1
         state.showTrackingPrompt = false
+        state.lastRoundStats = null
+        state.sensitivityMultiplier = 1
       }
     },
     setStarted(state, action: { payload: boolean }) {
@@ -41,6 +47,7 @@ const sessionSlice = createSlice({
         state.round = 1
         state.showTrackingPrompt = false
         state.lastRoundStats = null
+        state.sensitivityMultiplier = 1
       }
     },
     setTimerDone(state) {
@@ -61,9 +68,13 @@ const sessionSlice = createSlice({
     setLastRoundStats(state, action: { payload: RoundStats }) {
       state.lastRoundStats = action.payload
     },
+    setSensitivityMultiplier(state, action: { payload: number }) {
+      state.sensitivityMultiplier = action.payload
+    },
   },
 })
 
+export { BASE_SPEED }
 export const {
   setFullscreen,
   setStarted,
@@ -73,5 +84,6 @@ export const {
   setShowTrackingPrompt,
   setSensitivityRatio,
   setLastRoundStats,
+  setSensitivityMultiplier,
 } = sessionSlice.actions
 export default sessionSlice.reducer

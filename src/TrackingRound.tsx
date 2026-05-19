@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 
-const RADIUS = 6
+const RADIUS      = 6
 const DURATION_MS = 10_000
 const ON_THRESHOLD = 30
-const MARGIN = 60
+const MARGIN      = 60
 
 export interface RoundStats {
   behind: number
@@ -15,29 +15,24 @@ export interface RoundStats {
 interface Props {
   displayRound: number
   speed: number
+  /** Ref to the virtual cursor position managed by App */
+  virtualCursorRef: React.MutableRefObject<{ x: number; y: number }>
   onComplete: (stats: RoundStats) => void
 }
 
-function TrackingRound({ displayRound, speed, onComplete }: Props) {
+function TrackingRound({ displayRound, speed, virtualCursorRef, onComplete }: Props) {
   const circleY = window.innerHeight / 2
 
-  const [circleX, setCircleX]   = useState(MARGIN)
+  const [circleX,   setCircleX]   = useState(MARGIN)
   const [remaining, setRemaining] = useState(10)
 
-  const xRef        = useRef(MARGIN)
-  const velRef      = useRef(speed)
-  const cursorXRef  = useRef(window.innerWidth / 2)
-  const startRef    = useRef<number | null>(null)
-  const lastRef     = useRef<number | null>(null)
-  const rafRef      = useRef<number | null>(null)
-  const doneRef     = useRef(false)
-  const counts      = useRef({ total: 0, behind: 0, on: 0, ahead: 0 })
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => { cursorXRef.current = e.clientX }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [])
+  const xRef    = useRef(MARGIN)
+  const velRef  = useRef(speed)
+  const startRef = useRef<number | null>(null)
+  const lastRef  = useRef<number | null>(null)
+  const rafRef   = useRef<number | null>(null)
+  const doneRef  = useRef(false)
+  const counts   = useRef({ total: 0, behind: 0, on: 0, ahead: 0 })
 
   useEffect(() => {
     const animate = (now: number) => {
@@ -72,8 +67,8 @@ function TrackingRound({ displayRound, speed, onComplete }: Props) {
         return
       }
 
-      // classify cursor state — only within the 10 s window
-      const cx  = cursorXRef.current
+      // classify virtual cursor state — only within the 10 s window
+      const cx  = virtualCursorRef.current.x
       const dir = Math.sign(velRef.current)
       const rel = (cx - x) * dir
       counts.current.total++
@@ -86,7 +81,7 @@ function TrackingRound({ displayRound, speed, onComplete }: Props) {
 
     rafRef.current = requestAnimationFrame(animate)
     return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current) }
-  }, [speed, displayRound, onComplete])
+  }, [speed, displayRound, onComplete, virtualCursorRef])
 
   return (
     <>
@@ -110,7 +105,7 @@ function TrackingRound({ displayRound, speed, onComplete }: Props) {
         <span style={{ fontSize: '1.5rem' }}>{remaining}s</span>
       </div>
 
-      {/* Circle position label — shown below the cursor coords */}
+      {/* Circle position — red, below cursor coords */}
       <div
         style={{
           position: 'absolute',
@@ -130,6 +125,7 @@ function TrackingRound({ displayRound, speed, onComplete }: Props) {
         y: {(1 - (circleY / window.innerHeight) * 2).toFixed(4)}
       </div>
 
+      {/* Moving red circle */}
       <div
         style={{
           position: 'absolute',

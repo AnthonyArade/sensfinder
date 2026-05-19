@@ -1,12 +1,19 @@
+import { forwardRef } from 'react'
 import { useDispatch } from 'react-redux'
 import { setStarted } from './store/sessionSlice'
 
-function ResetButton() {
+const ResetButton = forwardRef<HTMLButtonElement>((_, ref) => {
   const dispatch = useDispatch()
+
+  const handleReset = () => {
+    if (document.pointerLockElement) document.exitPointerLock()
+    dispatch(setStarted(false))
+  }
 
   return (
     <button
-      onClick={() => dispatch(setStarted(false))}
+      ref={ref}
+      onClick={handleReset}
       style={{
         position: 'absolute',
         top: '1rem',
@@ -25,6 +32,6 @@ function ResetButton() {
       Reset
     </button>
   )
-}
+})
 
 export default ResetButton
