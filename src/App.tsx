@@ -43,8 +43,10 @@ function App() {
   const resetButtonRef    = useRef<HTMLButtonElement>(null)
   const restartButtonRef  = useRef<HTMLButtonElement>(null)
   const mixedAngleRef     = useRef(0)
-  const [cursorPx, setCursorPx] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-  const [pos,      setPos]      = useState({ x: 0, y: 0 })
+  const [cursorPx,   setCursorPx]   = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+  const [pos,        setPos]        = useState({ x: 0, y: 0 })
+  const [copiedKey,  setCopiedKey]  = useState<string | null>(null)
+  const [toast,      setToast]      = useState<string | null>(null)
 
   // Keep multiplier ref in sync with Redux without re-subscribing to mousemove
   useEffect(() => { multiplierRef.current = sensitivityMultiplier }, [sensitivityMultiplier])
@@ -61,12 +63,15 @@ function App() {
   }, [dispatch])
 
   // If pointer lock is released while session is active (Escape, or virtual reset click), reset
-  const startedRef = useRef(false)
+  // but NOT when we intentionally release it at session complete
+  const startedRef         = useRef(false)
+  const sessionCompleteRef = useRef(false)
   useEffect(() => { startedRef.current = started }, [started])
+  useEffect(() => { sessionCompleteRef.current = sessionComplete }, [sessionComplete])
 
   useEffect(() => {
     const onPointerLockChange = () => {
-      if (!document.pointerLockElement && startedRef.current) {
+      if (!document.pointerLockElement && startedRef.current && !sessionCompleteRef.current) {
         dispatch(setStarted(false))
       }
     }
@@ -133,6 +138,8 @@ function App() {
     if (round === 11) dispatch(setPhaseMultiplier({ phase: 'mixed',      value: newMultiplier }))
 
     if (round === 11) {
+      sessionCompleteRef.current = true   // set before exitPointerLock to suppress the reset handler
+      document.exitPointerLock()
       dispatch(setSessionComplete())
     } else {
       dispatch(nextRound())
@@ -326,6 +333,33 @@ function App() {
         const avgMultiplier = vals.length ? vals.reduce((s, m) => s + m, 0) / vals.length : null
         const finalCm = mixed !== null ? cm360(mixed) : '—'
 
+        const copy = (key: string, text: string) => {
+          navigator.clipboard.writeText(text)
+          setCopiedKey(key)
+          setToast(`Copied: ${text}`)
+          setTimeout(() => {
+            setCopiedKey(k => k === key ? null : k)
+            setToast(null)
+          }, 1500)
+        }
+
+        const CopyableValue = ({ copyKey, text, style }: { copyKey: string; text: string; style?: React.CSSProperties }) => (
+          <span
+            onClick={() => copy(copyKey, text)}
+            title="Click to copy"
+            style={{
+              cursor: 'pointer',
+              pointerEvents: 'all',
+              borderBottom: '1px dashed rgba(255,255,255,0.25)',
+              transition: 'color 0.15s',
+              color: copiedKey === copyKey ? '#4f4' : undefined,
+              ...style,
+            }}
+          >
+            {copiedKey === copyKey ? 'Copied!' : text}
+          </span>
+        )
+
         return (
           <div
             style={{
@@ -353,7 +387,11 @@ function App() {
             ].map(({ label, value }) => (
               <div key={label} style={{ display: 'flex', gap: '1.5rem', alignItems: 'baseline' }}>
                 <span style={{ opacity: 0.5, width: '6rem', textAlign: 'right', fontSize: '0.85rem' }}>{label}</span>
-                <span style={{ fontSize: '1.1rem', width: '9rem' }}>{value !== null ? `${cm360(value)} cm/360°` : '—'}</span>
+                <span style={{ fontSize: '1.1rem', width: '9rem' }}>
+                  {value !== null
+                    ? <CopyableValue copyKey={label} text={`${cm360(value)} cm/360°`} />
+                    : '—'}
+                </span>
                 {value !== null && (
                   <span style={{ fontSize: '0.85rem', color: deltaColor(value), width: '4rem' }}>
                     {deltaPct(value)}
@@ -366,7 +404,9 @@ function App() {
 
             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'baseline' }}>
               <span style={{ opacity: 0.5, width: '6rem', textAlign: 'right', fontSize: '0.85rem' }}>Average</span>
-              <span style={{ fontSize: '1.1rem', width: '9rem' }}>{avgCm} cm/360°</span>
+              <span style={{ fontSize: '1.1rem', width: '9rem' }}>
+                <CopyableValue copyKey="Average" text={`${avgCm} cm/360°`} />
+              </span>
               {avgMultiplier !== null && (
                 <span style={{ fontSize: '0.85rem', color: deltaColor(avgMultiplier), width: '4rem' }}>
                   {deltaPct(avgMultiplier)}
@@ -376,7 +416,9 @@ function App() {
 
             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'baseline' }}>
               <span style={{ opacity: 0.5, width: '6rem', textAlign: 'right', fontSize: '0.85rem' }}>Final</span>
-              <span style={{ fontSize: '1.4rem', fontWeight: 'bold', width: '9rem' }}>{finalCm} cm/360°</span>
+              <span style={{ fontSize: '1.4rem', fontWeight: 'bold', width: '9rem' }}>
+                <CopyableValue copyKey="Final" text={`${finalCm} cm/360°`} />
+              </span>
               {mixed !== null && (
                 <span style={{ fontSize: '0.85rem', color: deltaColor(mixed), width: '4rem' }}>
                   {deltaPct(mixed)}
@@ -408,6 +450,30 @@ function App() {
           </div>
         )
       })()}
+
+      {/* Copy toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '2.5rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#1a1a1a',
+            border: '1px solid #4f4',
+            color: '#4f4',
+            fontFamily: 'monospace',
+            fontSize: '0.85rem',
+            padding: '0.4rem 1rem',
+            borderRadius: 4,
+            whiteSpace: 'nowrap',
+            zIndex: 50,
+            pointerEvents: 'none',
+          }}
+        >
+          {toast}
+        </div>
+      )}
 
       {/* Virtual cursor — always visible */}
       <div
