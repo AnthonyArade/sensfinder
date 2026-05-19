@@ -3,6 +3,12 @@ import type { RoundStats } from '../TrackingRound'
 
 const BASE_SPEED = 300 // px/s — fixed, never changes
 
+interface PhaseMultipliers {
+  horizontal: number | null
+  vertical:   number | null
+  mixed:      number | null
+}
+
 interface SessionState {
   isFullscreen: boolean
   started: boolean
@@ -11,7 +17,9 @@ interface SessionState {
   showTrackingPrompt: boolean
   sensitivityRatio: number | null
   lastRoundStats: RoundStats | null
-  sensitivityMultiplier: number   // virtual cursor scale: 1 = 1:1, 0.75 = 25% slower
+  sensitivityMultiplier: number
+  phaseMultipliers: PhaseMultipliers
+  sessionComplete: boolean
 }
 
 const initialState: SessionState = {
@@ -23,6 +31,20 @@ const initialState: SessionState = {
   sensitivityRatio: null,
   lastRoundStats: null,
   sensitivityMultiplier: 1,
+  phaseMultipliers: { horizontal: null, vertical: null, mixed: null },
+  sessionComplete: false,
+}
+
+const resetFields = {
+  started: false,
+  timerDone: false,
+  round: 1,
+  showTrackingPrompt: false,
+  lastRoundStats: null,
+  sensitivityRatio: null,
+  sensitivityMultiplier: 1,
+  phaseMultipliers: { horizontal: null, vertical: null, mixed: null },
+  sessionComplete: false,
 }
 
 const sessionSlice = createSlice({
@@ -31,24 +53,11 @@ const sessionSlice = createSlice({
   reducers: {
     setFullscreen(state, action: { payload: boolean }) {
       state.isFullscreen = action.payload
-      if (!action.payload) {
-        state.started = false
-        state.timerDone = false
-        state.round = 1
-        state.showTrackingPrompt = false
-        state.lastRoundStats = null
-        state.sensitivityMultiplier = 1
-      }
+      if (!action.payload) Object.assign(state, resetFields)
     },
     setStarted(state, action: { payload: boolean }) {
       state.started = action.payload
-      if (!action.payload) {
-        state.timerDone = false
-        state.round = 1
-        state.showTrackingPrompt = false
-        state.lastRoundStats = null
-        state.sensitivityMultiplier = 1
-      }
+      if (!action.payload) Object.assign(state, resetFields)
     },
     setTimerDone(state) {
       state.timerDone = true
@@ -71,6 +80,12 @@ const sessionSlice = createSlice({
     setSensitivityMultiplier(state, action: { payload: number }) {
       state.sensitivityMultiplier = action.payload
     },
+    setPhaseMultiplier(state, action: { payload: { phase: keyof PhaseMultipliers; value: number } }) {
+      state.phaseMultipliers[action.payload.phase] = action.payload.value
+    },
+    setSessionComplete(state) {
+      state.sessionComplete = true
+    },
   },
 })
 
@@ -85,5 +100,7 @@ export const {
   setSensitivityRatio,
   setLastRoundStats,
   setSensitivityMultiplier,
+  setPhaseMultiplier,
+  setSessionComplete,
 } = sessionSlice.actions
 export default sessionSlice.reducer

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 
-const RADIUS      = 6
-const DURATION_MS = 10_000
+const RADIUS       = 6
+const DURATION_MS  = 10_000
 const ON_THRESHOLD = 30
-const MARGIN      = 60
+const MARGIN       = 60
 
 export interface RoundStats {
   behind: number
@@ -15,19 +15,28 @@ export interface RoundStats {
 interface Props {
   displayRound: number
   speed: number
-  /** Ref to the virtual cursor position managed by App */
+  direction: 'horizontal' | 'vertical' | 'mixed'
   virtualCursorRef: React.MutableRefObject<{ x: number; y: number }>
   onComplete: (stats: RoundStats) => void
 }
 
-function TrackingRound({ displayRound, speed, virtualCursorRef, onComplete }: Props) {
-  const circleY = window.innerHeight / 2
+function TrackingRound({ displayRound, speed, direction, virtualCursorRef, onComplete }: Props) {
+  const centerX = window.innerWidth  / 2
+  const centerY = window.innerHeight / 2
 
-  const [circleX,   setCircleX]   = useState(MARGIN)
+  // Random angle for mixed rounds, stable across re-renders via ref
+  const angleRef = useRef(direction === 'mixed' ? Math.random() * 2 * Math.PI : 0)
+  const initVX = direction === 'vertical'   ? 0 : direction === 'mixed' ? speed * Math.cos(angleRef.current) : speed
+  const initVY = direction === 'horizontal' ? 0 : direction === 'mixed' ? speed * Math.sin(angleRef.current) : speed
+
+  const [circleX,   setCircleX]   = useState(centerX)
+  const [circleY,   setCircleY]   = useState(centerY)
   const [remaining, setRemaining] = useState(10)
 
-  const xRef    = useRef(MARGIN)
-  const velRef  = useRef(speed)
+  const xRef     = useRef(centerX)
+  const yRef     = useRef(centerY)
+  const velXRef  = useRef(initVX)
+  const velYRef  = useRef(initVY)
   const startRef = useRef<number | null>(null)
   const lastRef  = useRef<number | null>(null)
   const rafRef   = useRef<number | null>(null)
@@ -42,17 +51,30 @@ function TrackingRound({ displayRound, speed, virtualCursorRef, onComplete }: Pr
       const dt = lastRef.current !== null ? (now - lastRef.current) / 1000 : 0
       lastRef.current = now
 
-      // move circle
-      let x = xRef.current + velRef.current * dt
+      // Move and bounce X
+      let x = xRef.current + velXRef.current * dt
       if (x >= window.innerWidth - MARGIN) {
         x = window.innerWidth - MARGIN
-        velRef.current = -Math.abs(velRef.current)
+        velXRef.current = -Math.abs(velXRef.current)
       } else if (x <= MARGIN) {
         x = MARGIN
-        velRef.current = Math.abs(velRef.current)
+        velXRef.current = Math.abs(velXRef.current)
       }
+
+      // Move and bounce Y
+      let y = yRef.current + velYRef.current * dt
+      if (y >= window.innerHeight - MARGIN) {
+        y = window.innerHeight - MARGIN
+        velYRef.current = -Math.abs(velYRef.current)
+      } else if (y <= MARGIN) {
+        y = MARGIN
+        velYRef.current = Math.abs(velYRef.current)
+      }
+
       xRef.current = x
+      yRef.current = y
       setCircleX(x)
+      setCircleY(y)
       setRemaining(Math.max(0, Math.ceil((DURATION_MS - elapsed) / 1000)))
 
       if (elapsed >= DURATION_MS) {
@@ -67,21 +89,30 @@ function TrackingRound({ displayRound, speed, virtualCursorRef, onComplete }: Pr
         return
       }
 
-      // classify virtual cursor state — only within the 10 s window
-      const cx  = virtualCursorRef.current.x
-      const dir = Math.sign(velRef.current)
-      const rel = (cx - x) * dir
+      // Classify cursor position relative to circle direction
+      const dx = virtualCursorRef.current.x - x
+      const dy = virtualCursorRef.current.y - y
+      const dist = Math.sqrt(dx * dx + dy * dy)
       counts.current.total++
-      if (Math.abs(cx - x) <= ON_THRESHOLD) counts.current.on++
-      else if (rel < 0)                      counts.current.behind++
-      else                                   counts.current.ahead++
+      if (dist <= ON_THRESHOLD) {
+        counts.current.on++
+      } else {
+        // Dot product of (cursor − circle) with velocity: positive = ahead of direction
+        const dot = dx * velXRef.current + dy * velYRef.current
+        if (dot >= 0) counts.current.ahead++
+        else          counts.current.behind++
+      }
 
       rafRef.current = requestAnimationFrame(animate)
     }
 
     rafRef.current = requestAnimationFrame(animate)
     return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current) }
-  }, [speed, displayRound, onComplete, virtualCursorRef])
+  }, [speed, direction, displayRound, onComplete, virtualCursorRef])
+
+  const label = direction === 'horizontal' ? 'horizontal'
+              : direction === 'vertical'   ? 'vertical'
+              : 'mixed'
 
   return (
     <>
@@ -101,31 +132,10 @@ function TrackingRound({ displayRound, speed, virtualCursorRef, onComplete }: Pr
           gap: '0.25rem',
         }}
       >
-        <span style={{ fontSize: '0.85rem', opacity: 0.5 }}>Round {displayRound}</span>
+        <span style={{ fontSize: '0.85rem', opacity: 0.5 }}>Round {displayRound} — {label}</span>
         <span style={{ fontSize: '1.5rem' }}>{remaining}s</span>
       </div>
 
-      {/* Circle position — red, below cursor coords */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 'calc(50% + 2.5rem)',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: 'red',
-          fontFamily: 'monospace',
-          fontSize: '2rem',
-          zIndex: 20,
-          pointerEvents: 'none',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        x: {((circleX / window.innerWidth) * 2 - 1).toFixed(4)}
-        &nbsp;
-        y: {(1 - (circleY / window.innerHeight) * 2).toFixed(4)}
-      </div>
-
-      {/* Moving red circle */}
       <div
         style={{
           position: 'absolute',
@@ -134,7 +144,7 @@ function TrackingRound({ displayRound, speed, virtualCursorRef, onComplete }: Pr
           borderRadius: '50%',
           background: 'red',
           left: circleX - RADIUS,
-          top: circleY - RADIUS,
+          top:  circleY - RADIUS,
           pointerEvents: 'none',
           zIndex: 20,
         }}

@@ -3,27 +3,23 @@ import type { RoundStats } from './TrackingRound'
 /**
  * Adjust the virtual cursor sensitivity multiplier after each tracking round.
  *
- * Circle speed is fixed at 300 px/s. The multiplier scales how much the
- * virtual cursor moves per unit of raw mouse movement:
- *   multiplier > 1 → cursor moves faster (higher effective sensitivity)
- *   multiplier < 1 → cursor moves slower (lower effective sensitivity)
- *
- * Adjustment schedule (binary-search convergence):
- *   Round 2 ends → ±25%
- *   Round 3 ends → ±12.5%
- *   Round 4 ends → ±6.25%
+ * phaseRound is the 1-based index within the current phase (horizontal or vertical):
+ *   phaseRound 2 → ±25%
+ *   phaseRound 3 → ±12.5%
+ *   phaseRound 4 → ±6.25%
  *   … halving each time
  *
- * More ahead  → cursor too fast for the circle → reduce multiplier
- * More behind → cursor too slow               → increase multiplier
- * Tied        → no change
+ * If "on it" is the dominant stat, the factor is halved again (already converging well).
+ *
+ * More ahead  → cursor too fast → reduce multiplier
+ * More behind → cursor too slow → increase multiplier
  */
 export function adjustMultiplier(
   current: number,
   stats: RoundStats,
-  internalRound: number,   // the internal round number that just finished (≥ 2)
+  phaseRound: number,   // position within the current phase, starting at 2
 ): number {
-  let factor = 0.25 / Math.pow(2, internalRound - 2)
+  let factor = 0.25 / Math.pow(2, phaseRound - 2)
 
   if (stats.on > stats.ahead && stats.on > stats.behind) {
     factor /= 2

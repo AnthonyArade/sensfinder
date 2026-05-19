@@ -19,7 +19,10 @@ function SensitivityDisplay() {
   let lastDeltaLabel: string | null = null
   if (lastRoundStats && round >= 3) {
     const completedRound = round - 1
-    let factor = 0.25 / Math.pow(2, completedRound - 2)
+    const phaseRound = completedRound <= 4 ? completedRound
+                     : completedRound <= 7 ? completedRound - 3
+                     : completedRound - 6
+    let factor = 0.25 / Math.pow(2, phaseRound - 2)
     if (lastRoundStats.on > lastRoundStats.ahead && lastRoundStats.on > lastRoundStats.behind) {
       factor /= 2
     }
