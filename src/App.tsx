@@ -46,8 +46,6 @@ function App() {
   const [cursorPx, setCursorPx] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
   const [pos,      setPos]      = useState({ x: 0, y: 0 })
 
-  const isTracking = timerDone && round > 1 && !showTrackingPrompt
-
   // Keep multiplier ref in sync with Redux without re-subscribing to mousemove
   useEffect(() => { multiplierRef.current = sensitivityMultiplier }, [sensitivityMultiplier])
 
@@ -80,7 +78,7 @@ function App() {
     const onMouseDown = () => {
       if (!document.pointerLockElement) return
       const { x, y } = virtualCursorRef.current
-      const hits = (ref: React.RefObject<HTMLButtonElement>) => {
+      const hits = (ref: React.RefObject<HTMLButtonElement | null>) => {
         if (!ref.current) return false
         const r = ref.current.getBoundingClientRect()
         return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom

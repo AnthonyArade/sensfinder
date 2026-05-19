@@ -41,7 +41,7 @@ function CalibrationRound({ onComplete }: Props) {
   // step 0 = anchor click (no measurement), steps 1-5 = measured clicks
   const [step,      setStep]      = useState(0)
   const [target,    setTarget]    = useState<Pos>(center)
-  const [overshoot, setOvershoot] = useState(0)
+  const [, setOvershoot] = useState(0)
 
   const prevPos    = useRef<Pos | null>(null)
   const accX       = useRef(0)
