@@ -206,24 +206,58 @@ function App() {
       {started && !sessionComplete && <ResetButton ref={resetButtonRef} />}
       {round > 1 && !sessionComplete && <SensitivityDisplay />}
       {!started && <StartPrompt onPlay={() => dispatch(setStarted(true))} />}
-      {started && !timerDone && <Timer onComplete={() => dispatch(setTimerDone())} />}
+      {started && !timerDone && <Timer onComplete={() => dispatch(setTimerDone())} aboveCenter={round > 1} />}
       {started && !timerDone && round > 1 && (() => {
+        const isRandom      = round > 7
+        // Alternate sign within each phase: even phase-position = +1, odd = -1
+        const phasePos      = round <= 4 ? round - 2 : round <= 7 ? round - 5 : 0
+        const sign          = phasePos % 2 === 0 ? 1 : -1
+        // 0°=right, 180°=left, 90°=down, 270°=up
+        const arrowDeg      = round <= 4
+          ? (sign > 0 ? 0 : 180)
+          : (sign > 0 ? 90 : 270)
         const upcomingLabel = round <= 4 ? 'Horizontal' : round <= 7 ? 'Vertical' : 'Random'
         return (
           <>
+            {/* Starting position dot */}
             <div
               style={{
                 position: 'absolute',
-                width: 12,
-                height: 12,
+                width: 24,
+                height: 24,
                 borderRadius: '50%',
                 background: 'red',
-                left: window.innerWidth / 2 - 6,
-                top: window.innerHeight / 2 - 6,
+                left: window.innerWidth / 2 - 12,
+                top: window.innerHeight / 2 - 12,
                 pointerEvents: 'none',
                 zIndex: 20,
               }}
             />
+
+            {/* Direction arrow — only for horizontal and vertical */}
+            {!isRandom && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  pointerEvents: 'none',
+                  zIndex: 20,
+                }}
+              >
+                <svg
+                  width="120" height="120" viewBox="-60 -60 120 120"
+                  style={{ display: 'block', transform: `rotate(${arrowDeg}deg)` }}
+                >
+                  {/* shaft starting after the 6px dot radius */}
+                  <line x1="8" y1="0" x2="52" y2="0" stroke="red" strokeWidth="2.5" strokeLinecap="round" />
+                  <polyline points="42,-9 54,0 42,9" fill="none" stroke="red" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+
+            {/* Label */}
             <div
               style={{
                 position: 'absolute',
@@ -255,25 +289,39 @@ function App() {
         <CalibrationRound onComplete={handleCalibrationComplete} />
       )}
 
-      {timerDone && !showTrackingPrompt && round > 1 && !sessionComplete && (
-        <TrackingRound
-          key={round}
-          displayRound={round - 1}
-          speed={BASE_SPEED}
-          direction={round <= 4 ? 'horizontal' : round <= 7 ? 'vertical' : 'mixed'}
-          virtualCursorRef={virtualCursorRef}
-          onComplete={handleTrackingRoundComplete}
-        />
-      )}
+      {timerDone && !showTrackingPrompt && round > 1 && !sessionComplete && (() => {
+        const phasePos   = round <= 4 ? round - 2 : round <= 7 ? round - 5 : 0
+        const initialSign = (phasePos % 2 === 0 ? 1 : -1) as 1 | -1
+        return (
+          <TrackingRound
+            key={round}
+            displayRound={round - 1}
+            speed={BASE_SPEED}
+            direction={round <= 4 ? 'horizontal' : round <= 7 ? 'vertical' : 'mixed'}
+            initialSign={initialSign}
+            virtualCursorRef={virtualCursorRef}
+            onComplete={handleTrackingRoundComplete}
+          />
+        )
+      })()}
 
       {sessionComplete && sensitivityRatio !== null && (() => {
-        const cm360 = (m: number) => ((window.screen.width * 2.54) / (96 * sensitivityRatio) / m).toFixed(1)
+        const baseCm360 = (window.screen.width * 2.54) / (96 * sensitivityRatio)
+        const cm360     = (m: number) => (baseCm360 / m).toFixed(1)
+        const deltaPct  = (m: number) => {
+          const d = (m - 1) * 100
+          return (d >= 0 ? '+' : '') + d.toFixed(1) + '%'
+        }
+        const deltaColor = (m: number) => m >= 1 ? '#4f4' : '#f66'
+
         const { horizontal, vertical, mixed } = phaseMultipliers
         const vals = [horizontal, vertical, mixed].filter((v): v is number => v !== null)
         const avgCm = vals.length
           ? (vals.reduce((s, m) => s + parseFloat(cm360(m)), 0) / vals.length).toFixed(1)
           : '—'
+        const avgMultiplier = vals.length ? vals.reduce((s, m) => s + m, 0) / vals.length : null
         const finalCm = mixed !== null ? cm360(mixed) : '—'
+
         return (
           <div
             style={{
@@ -301,20 +349,35 @@ function App() {
             ].map(({ label, value }) => (
               <div key={label} style={{ display: 'flex', gap: '1.5rem', alignItems: 'baseline' }}>
                 <span style={{ opacity: 0.5, width: '6rem', textAlign: 'right', fontSize: '0.85rem' }}>{label}</span>
-                <span style={{ fontSize: '1.1rem' }}>{value !== null ? `${cm360(value)} cm/360°` : '—'}</span>
+                <span style={{ fontSize: '1.1rem', width: '9rem' }}>{value !== null ? `${cm360(value)} cm/360°` : '—'}</span>
+                {value !== null && (
+                  <span style={{ fontSize: '0.85rem', color: deltaColor(value), width: '4rem' }}>
+                    {deltaPct(value)}
+                  </span>
+                )}
               </div>
             ))}
 
-            <div style={{ width: '18rem', height: 1, background: '#444', margin: '0.5rem 0' }} />
+            <div style={{ width: '22rem', height: 1, background: '#444', margin: '0.5rem 0' }} />
 
             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'baseline' }}>
               <span style={{ opacity: 0.5, width: '6rem', textAlign: 'right', fontSize: '0.85rem' }}>Average</span>
-              <span style={{ fontSize: '1.1rem' }}>{avgCm} cm/360°</span>
+              <span style={{ fontSize: '1.1rem', width: '9rem' }}>{avgCm} cm/360°</span>
+              {avgMultiplier !== null && (
+                <span style={{ fontSize: '0.85rem', color: deltaColor(avgMultiplier), width: '4rem' }}>
+                  {deltaPct(avgMultiplier)}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'baseline' }}>
               <span style={{ opacity: 0.5, width: '6rem', textAlign: 'right', fontSize: '0.85rem' }}>Final</span>
-              <span style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>{finalCm} cm/360°</span>
+              <span style={{ fontSize: '1.4rem', fontWeight: 'bold', width: '9rem' }}>{finalCm} cm/360°</span>
+              {mixed !== null && (
+                <span style={{ fontSize: '0.85rem', color: deltaColor(mixed), width: '4rem' }}>
+                  {deltaPct(mixed)}
+                </span>
+              )}
             </div>
 
             <button

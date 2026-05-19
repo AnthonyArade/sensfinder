@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 const TOTAL_STEPS  = 5
-const RADIUS       = 6
+const RADIUS       = 12
 const MARGIN       = 80
 const MIN_DIST     = 220
 const MAX_ATTEMPTS = 50

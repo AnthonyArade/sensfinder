@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 
 interface TimerProps {
   onComplete: () => void
+  aboveCenter?: boolean  // position above screen center instead of at it
 }
 
-function Timer({ onComplete }: TimerProps) {
+function Timer({ onComplete, aboveCenter }: TimerProps) {
   const [count, setCount] = useState(3)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -25,15 +26,14 @@ function Timer({ onComplete }: TimerProps) {
     <div
       style={{
         position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        left: '50%',
+        top: aboveCenter ? 'calc(50% - 80px)' : '50%',
+        transform: 'translate(-50%, -50%)',
         zIndex: 30,
         pointerEvents: 'none',
       }}
     >
-      <span style={{ fontSize: '12rem', color: '#fff', fontFamily: 'monospace', lineHeight: 1 }}>
+      <span style={{ fontSize: aboveCenter ? '3rem' : '12rem', color: '#fff', fontFamily: 'monospace', lineHeight: 1 }}>
         {count}
       </span>
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
-const RADIUS       = 6
-const DURATION_MS  = 10_000
+const RADIUS       = 12
+const DURATION_MS  = 2_000
 const ON_THRESHOLD = 30
 const MARGIN       = 60
 
@@ -16,22 +16,23 @@ interface Props {
   displayRound: number
   speed: number
   direction: 'horizontal' | 'vertical' | 'mixed'
+  initialSign: 1 | -1   // +1 = right/down, -1 = left/up
   virtualCursorRef: React.MutableRefObject<{ x: number; y: number }>
   onComplete: (stats: RoundStats) => void
 }
 
-function TrackingRound({ displayRound, speed, direction, virtualCursorRef, onComplete }: Props) {
+function TrackingRound({ displayRound, speed, direction, initialSign, virtualCursorRef, onComplete }: Props) {
   const centerX = window.innerWidth  / 2
   const centerY = window.innerHeight / 2
 
-  // Random angle for mixed rounds, stable across re-renders via ref
   const angleRef = useRef(direction === 'mixed' ? Math.random() * 2 * Math.PI : 0)
-  const initVX = direction === 'vertical'   ? 0 : direction === 'mixed' ? speed * Math.cos(angleRef.current) : speed
-  const initVY = direction === 'horizontal' ? 0 : direction === 'mixed' ? speed * Math.sin(angleRef.current) : speed
+  const initVX = direction === 'vertical'   ? 0 : direction === 'mixed' ? speed * Math.cos(angleRef.current) : speed * initialSign
+  const initVY = direction === 'horizontal' ? 0 : direction === 'mixed' ? speed * Math.sin(angleRef.current) : speed * initialSign
 
   const [circleX,   setCircleX]   = useState(centerX)
   const [circleY,   setCircleY]   = useState(centerY)
   const [remaining, setRemaining] = useState(10)
+  const [isOnIt,    setIsOnIt]    = useState(false)
 
   const xRef     = useRef(centerX)
   const yRef     = useRef(centerY)
@@ -51,7 +52,6 @@ function TrackingRound({ displayRound, speed, direction, virtualCursorRef, onCom
       const dt = lastRef.current !== null ? (now - lastRef.current) / 1000 : 0
       lastRef.current = now
 
-      // Move and bounce X
       let x = xRef.current + velXRef.current * dt
       if (x >= window.innerWidth - MARGIN) {
         x = window.innerWidth - MARGIN
@@ -61,7 +61,6 @@ function TrackingRound({ displayRound, speed, direction, virtualCursorRef, onCom
         velXRef.current = Math.abs(velXRef.current)
       }
 
-      // Move and bounce Y
       let y = yRef.current + velYRef.current * dt
       if (y >= window.innerHeight - MARGIN) {
         y = window.innerHeight - MARGIN
@@ -89,15 +88,15 @@ function TrackingRound({ displayRound, speed, direction, virtualCursorRef, onCom
         return
       }
 
-      // Classify cursor position relative to circle direction
-      const dx = virtualCursorRef.current.x - x
-      const dy = virtualCursorRef.current.y - y
+      const dx   = virtualCursorRef.current.x - x
+      const dy   = virtualCursorRef.current.y - y
       const dist = Math.sqrt(dx * dx + dy * dy)
+      const onIt = dist <= ON_THRESHOLD
+      setIsOnIt(onIt)
       counts.current.total++
-      if (dist <= ON_THRESHOLD) {
+      if (onIt) {
         counts.current.on++
       } else {
-        // Dot product of (cursor − circle) with velocity: positive = ahead of direction
         const dot = dx * velXRef.current + dy * velYRef.current
         if (dot >= 0) counts.current.ahead++
         else          counts.current.behind++
@@ -142,7 +141,7 @@ function TrackingRound({ displayRound, speed, direction, virtualCursorRef, onCom
           width: RADIUS * 2,
           height: RADIUS * 2,
           borderRadius: '50%',
-          background: 'red',
+          background: isOnIt ? '#4f4' : 'red',
           left: circleX - RADIUS,
           top:  circleY - RADIUS,
           pointerEvents: 'none',
