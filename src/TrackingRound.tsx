@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 const RADIUS       = 12
-const DURATION_MS  = 2_000
+const DURATION_MS  = 10_000
 const ON_THRESHOLD = 30
 const MARGIN       = 60
 
